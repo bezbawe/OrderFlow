@@ -1,3 +1,5 @@
+using MassTransit;
+using OrderFlow.Contracts;
 using OrderFlow.Orders.Api.Contracts;
 using OrderFlow.Orders.Api.Entities;
 using OrderFlow.Orders.Api.Repository.Migrator;
@@ -10,7 +12,14 @@ builder.Services.AddOpenApi();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
-builder.Services.AddOrdersServices(connectionString);
+var rabbitMqHost = builder.Configuration["RabbitMq:Host"]
+    ?? throw new InvalidOperationException("'RabbitMq:Host' is not configured.");
+var rabbitMqUsername = builder.Configuration["RabbitMq:Username"]
+    ?? throw new InvalidOperationException("'RabbitMq:Username' is not configured.");
+var rabbitMqPassword = builder.Configuration["RabbitMq:Password"]
+    ?? throw new InvalidOperationException("'RabbitMq:Password' is not configured.");
+
+builder.Services.AddOrdersServices(connectionString, rabbitMqHost, rabbitMqUsername, rabbitMqPassword);
 
 var app = builder.Build();
 
@@ -21,7 +30,7 @@ if (app.Environment.IsDevelopment())
 
 await app.Services.ApplyMigrationsAsync();
 
-app.MapPost("/orders", async (CreateOrderRequest request, IOrderSystem orderSystem) =>
+app.MapPost("/orders", async (CreateOrderRequest request, IOrderSystem orderSystem, IPublishEndpoint publishEndpoint) =>
 {
     var order = new Order
     {
@@ -35,6 +44,17 @@ app.MapPost("/orders", async (CreateOrderRequest request, IOrderSystem orderSyst
     };
 
     var created = await orderSystem.OrderSubsystem.Create(order);
+
+    await publishEndpoint.Publish(new OrderSubmitted
+    {
+        OrderId = created.Id,
+        CustomerName = created.CustomerName,
+        SubmittedAt = created.DateCreated,
+        Items = created.Items
+            .Select(item => new OrderLine { ProductName = item.ProductName, Quantity = item.Quantity })
+            .ToList(),
+    });
+
     return Results.Created($"/orders/{created.Id}", created);
 });
 
