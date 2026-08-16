@@ -24,8 +24,8 @@ public static class OrdersServiceCollectionExtensions
             // (после сохранения саги) — снимает гонку publish-до-commit.
             x.AddConfigureEndpointsCallback((context, _, cfg) => cfg.UseInMemoryOutbox(context));
 
-            x.AddConsumer<StubReserveStockConsumer>();
             x.AddConsumer<OrderConfirmedConsumer>();
+            x.AddConsumer<OrderCancelledConsumer>();
 
             x.AddSagaStateMachine<OrderStateMachine, OrderStateInstance>()
                 .EntityFrameworkRepository(r =>
@@ -45,6 +45,8 @@ public static class OrdersServiceCollectionExtensions
                 cfg.ConfigureEndpoints(context);
             });
         });
+
+        services.AddHostedService<ReservationTimeoutSweeper>();
 
         return services;
     }

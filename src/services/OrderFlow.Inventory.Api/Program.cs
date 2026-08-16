@@ -1,39 +1,33 @@
+using Microsoft.EntityFrameworkCore;
+using OrderFlow.Inventory.Api.Repository.DbContext;
+using OrderFlow.Inventory.Api.Repository.Migrator;
+using OrderFlow.Inventory.Api.Systems;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+
+var rabbitMqHost = builder.Configuration["RabbitMq:Host"]
+    ?? throw new InvalidOperationException("'RabbitMq:Host' is not configured.");
+var rabbitMqUsername = builder.Configuration["RabbitMq:Username"]
+    ?? throw new InvalidOperationException("'RabbitMq:Username' is not configured.");
+var rabbitMqPassword = builder.Configuration["RabbitMq:Password"]
+    ?? throw new InvalidOperationException("'RabbitMq:Password' is not configured.");
+
+builder.Services.AddInventoryServices(connectionString, rabbitMqHost, rabbitMqUsername, rabbitMqPassword);
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+await app.Services.ApplyMigrationsAsync();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+app.MapGet("/products", async (InventoryDbContext db) => Results.Ok(await db.Products.ToListAsync()));
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
