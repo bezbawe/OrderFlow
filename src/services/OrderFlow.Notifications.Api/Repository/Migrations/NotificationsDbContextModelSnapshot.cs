@@ -4,14 +4,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using OrderFlow.Inventory.Api.Repository.DbContext;
+using OrderFlow.Notifications.Api.Repository.DbContext;
 
 #nullable disable
 
-namespace OrderFlow.Inventory.Api.Repository.Migrations
+namespace OrderFlow.Notifications.Api.Repository.Migrations
 {
-    [DbContext(typeof(InventoryDbContext))]
-    partial class InventoryDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(NotificationsDbContext))]
+    partial class NotificationsDbContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
@@ -190,93 +190,41 @@ namespace OrderFlow.Inventory.Api.Repository.Migrations
                     b.ToTable("OutboxState");
                 });
 
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.Product", b =>
+            modelBuilder.Entity("OrderFlow.Notifications.Api.Entities.Notification", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AvailableQuantity")
-                        .HasColumnType("integer");
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
-                    b.Property<string>("Name")
+                    b.Property<string>("CustomerName")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("Products");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            AvailableQuantity = 100,
-                            Name = "Widget"
-                        },
-                        new
-                        {
-                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            AvailableQuantity = 2,
-                            Name = "Gadget"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            AvailableQuantity = 0,
-                            Name = "Out Of Stock Item"
-                        });
-                });
-
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.StockReservation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTimeOffset>("ReservedAt")
+                    b.Property<DateTimeOffset>("SentAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId")
-                        .IsUnique();
-
-                    b.ToTable("StockReservations");
-                });
-
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.StockReservationLine", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ProductName")
+                    b.Property<string>("Subject")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("StockReservationId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("StockReservationId");
+                    b.HasIndex("OrderId");
 
-                    b.ToTable("StockReservationLines");
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
@@ -289,22 +237,6 @@ namespace OrderFlow.Inventory.Api.Repository.Migrations
                         .WithMany()
                         .HasForeignKey("InboxMessageId", "InboxConsumerId")
                         .HasPrincipalKey("MessageId", "ConsumerId");
-                });
-
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.StockReservationLine", b =>
-                {
-                    b.HasOne("OrderFlow.Inventory.Api.Entities.StockReservation", "StockReservation")
-                        .WithMany("Lines")
-                        .HasForeignKey("StockReservationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("StockReservation");
-                });
-
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.StockReservation", b =>
-                {
-                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }

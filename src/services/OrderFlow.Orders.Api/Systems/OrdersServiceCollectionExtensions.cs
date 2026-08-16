@@ -20,9 +20,17 @@ public static class OrdersServiceCollectionExtensions
 
         services.AddMassTransit(x =>
         {
-            // In-memory outbox откладывает publish/send до успешного завершения consume
-            // (после сохранения саги) — снимает гонку publish-до-commit.
-            x.AddConfigureEndpointsCallback((context, _, cfg) => cfg.UseInMemoryOutbox(context));
+            x.AddEntityFrameworkOutbox<OrdersDbContext>(o =>
+            {
+                o.UsePostgres();
+                // Bus outbox — для publish вне consume-контекста (POST /orders публикует OrderSubmitted
+                // в том же DbContext-scope, что и создание заказа — классический dual-write).
+                o.UseBusOutbox();
+            });
+
+            // Receive-endpoint outbox — откладывает publish/send консьюмера (в т.ч. саги) до успешного
+            // сохранения в БД, и дедуплицирует повторную доставку по MessageId (inbox).
+            x.AddConfigureEndpointsCallback((context, _, cfg) => cfg.UseEntityFrameworkOutbox<OrdersDbContext>(context));
 
             x.AddConsumer<OrderConfirmedConsumer>();
             x.AddConsumer<OrderCancelledConsumer>();
@@ -42,7 +50,10 @@ public static class OrdersServiceCollectionExtensions
                     h.Username(rabbitMqUsername);
                     h.Password(rabbitMqPassword);
                 });
-                cfg.ConfigureEndpoints(context);
+                // Имя очереди по умолчанию берётся из имени класса-консьюмера — без namespace
+                // консьюмеры с одинаковым именем в разных сервисах (напр. OrderConfirmedConsumer
+                // в Orders и Notifications) окажутся на одной очереди и будут конкурировать.
+                cfg.ConfigureEndpoints(context, new KebabCaseEndpointNameFormatter(includeNamespace: true));
             });
         });
 

@@ -1,19 +1,16 @@
 using OrderFlow.Contracts;
 using OrderFlow.Inventory.Api.Entities;
-using OrderFlow.Inventory.Api.Repository.DbContext;
 using OrderFlow.Inventory.Api.Repository.Interfaces;
 
 namespace OrderFlow.Inventory.Api.Systems;
 
 public class StockSubsystem : IStockSubsystem
 {
-    private readonly InventoryDbContext _db;
     private readonly IProductRepository _productRepository;
     private readonly IStockReservationRepository _reservationRepository;
 
-    public StockSubsystem(InventoryDbContext db, IProductRepository productRepository, IStockReservationRepository reservationRepository)
+    public StockSubsystem(IProductRepository productRepository, IStockReservationRepository reservationRepository)
     {
-        _db = db;
         _productRepository = productRepository;
         _reservationRepository = reservationRepository;
     }
@@ -39,8 +36,8 @@ public class StockSubsystem : IStockSubsystem
             }
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync();
-
+        // Атомарность между обновлением остатков и созданием резерва обеспечивает
+        // transactional outbox (UseEntityFrameworkOutbox оборачивает весь Consume в транзакцию).
         foreach (var item in items)
         {
             byName[item.ProductName].AvailableQuantity -= item.Quantity;
@@ -52,8 +49,6 @@ public class StockSubsystem : IStockSubsystem
             OrderId = orderId,
             Lines = items.Select(item => new StockReservationLine { ProductName = item.ProductName, Quantity = item.Quantity }).ToList(),
         });
-
-        await transaction.CommitAsync();
 
         return new StockReservationResult(true, null);
     }
@@ -71,8 +66,6 @@ public class StockSubsystem : IStockSubsystem
         var products = await _productRepository.GetByNamesAsync(productNames);
         var byName = products.ToDictionary(product => product.Name);
 
-        await using var transaction = await _db.Database.BeginTransactionAsync();
-
         foreach (var line in reservation.Lines)
         {
             if (byName.TryGetValue(line.ProductName, out var product))
@@ -84,7 +77,5 @@ public class StockSubsystem : IStockSubsystem
 
         reservation.Status = StockReservationStatus.Released;
         await _reservationRepository.UpdateAsync(reservation);
-
-        await transaction.CommitAsync();
     }
 }

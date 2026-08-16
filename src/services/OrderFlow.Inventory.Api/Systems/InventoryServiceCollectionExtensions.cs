@@ -19,7 +19,11 @@ public static class InventoryServiceCollectionExtensions
 
         services.AddMassTransit(x =>
         {
-            x.AddConfigureEndpointsCallback((context, _, cfg) => cfg.UseInMemoryOutbox(context));
+            x.AddEntityFrameworkOutbox<InventoryDbContext>(o => o.UsePostgres());
+
+            // Откладывает publish консьюмера до успешного сохранения в БД и дедуплицирует
+            // повторную доставку по MessageId (inbox) — резерв/списание идемпотентны.
+            x.AddConfigureEndpointsCallback((context, _, cfg) => cfg.UseEntityFrameworkOutbox<InventoryDbContext>(context));
 
             x.AddConsumer<ReserveStockConsumer>();
             x.AddConsumer<ReleaseStockConsumer>();
@@ -31,7 +35,10 @@ public static class InventoryServiceCollectionExtensions
                     h.Username(rabbitMqUsername);
                     h.Password(rabbitMqPassword);
                 });
-                cfg.ConfigureEndpoints(context);
+                // Имя очереди по умолчанию берётся из имени класса-консьюмера — без namespace
+                // консьюмеры с одинаковым именем в разных сервисах (напр. OrderConfirmedConsumer
+                // в Orders и Notifications) окажутся на одной очереди и будут конкурировать.
+                cfg.ConfigureEndpoints(context, new KebabCaseEndpointNameFormatter(includeNamespace: true));
             });
         });
 

@@ -1,3 +1,4 @@
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Inventory.Api.Entities;
 
@@ -20,6 +21,8 @@ public class InventoryDbContext : Microsoft.EntityFrameworkCore.DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.AddTransactionalOutboxEntities();
 
         modelBuilder.Entity<Product>(entity =>
         {

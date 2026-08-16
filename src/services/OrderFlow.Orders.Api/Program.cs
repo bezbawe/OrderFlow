@@ -2,6 +2,7 @@ using MassTransit;
 using OrderFlow.Contracts;
 using OrderFlow.Orders.Api.Contracts;
 using OrderFlow.Orders.Api.Entities;
+using OrderFlow.Orders.Api.Repository.DbContext;
 using OrderFlow.Orders.Api.Repository.Migrator;
 using OrderFlow.Orders.Api.Systems;
 
@@ -30,7 +31,7 @@ if (app.Environment.IsDevelopment())
 
 await app.Services.ApplyMigrationsAsync();
 
-app.MapPost("/orders", async (CreateOrderRequest request, IOrderSystem orderSystem, IPublishEndpoint publishEndpoint) =>
+app.MapPost("/orders", async (CreateOrderRequest request, IOrderSystem orderSystem, IPublishEndpoint publishEndpoint, OrdersDbContext db) =>
 {
     var order = new Order
     {
@@ -43,6 +44,11 @@ app.MapPost("/orders", async (CreateOrderRequest request, IOrderSystem orderSyst
         }).ToList(),
     };
 
+    // Bus outbox лишь трекает сообщение на этом DbContext — физически он сохраняется
+    // только следующим SaveChangesAsync. Оборачиваем создание заказа и publish в одну
+    // транзакцию, чтобы запись заказа и постановка события в outbox были атомарны.
+    await using var transaction = await db.Database.BeginTransactionAsync();
+
     var created = await orderSystem.OrderSubsystem.Create(order);
 
     await publishEndpoint.Publish(new OrderSubmitted
@@ -54,6 +60,9 @@ app.MapPost("/orders", async (CreateOrderRequest request, IOrderSystem orderSyst
             .Select(item => new OrderLine { ProductName = item.ProductName, Quantity = item.Quantity })
             .ToList(),
     });
+    await db.SaveChangesAsync();
+
+    await transaction.CommitAsync();
 
     return Results.Created($"/orders/{created.Id}", created);
 });

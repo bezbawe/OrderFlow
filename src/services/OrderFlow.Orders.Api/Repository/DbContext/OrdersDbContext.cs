@@ -1,3 +1,4 @@
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Orders.Api.Entities;
 using OrderFlow.Orders.Api.Systems.Saga;
@@ -20,6 +21,8 @@ public class OrdersDbContext : Microsoft.EntityFrameworkCore.DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.AddTransactionalOutboxEntities();
 
         modelBuilder.Entity<OrderStateInstance>(entity =>
         {

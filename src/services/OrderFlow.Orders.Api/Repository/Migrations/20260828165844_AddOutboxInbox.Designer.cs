@@ -2,18 +2,21 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using OrderFlow.Inventory.Api.Repository.DbContext;
+using OrderFlow.Orders.Api.Repository.DbContext;
 
 #nullable disable
 
-namespace OrderFlow.Inventory.Api.Repository.Migrations
+namespace OrderFlow.Orders.Api.Repository.Migrations
 {
-    [DbContext(typeof(InventoryDbContext))]
-    partial class InventoryDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(OrdersDbContext))]
+    [Migration("20260828165844_AddOutboxInbox")]
+    partial class AddOutboxInbox
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -190,75 +193,42 @@ namespace OrderFlow.Inventory.Api.Repository.Migrations
                     b.ToTable("OutboxState");
                 });
 
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.Product", b =>
+            modelBuilder.Entity("OrderFlow.Orders.Api.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AvailableQuantity")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Name")
+                    b.Property<string>("CustomerName")
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<DateTimeOffset>("DateCreated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("numeric");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .IsUnique();
+                    b.HasIndex("DateCreated");
 
-                    b.ToTable("Products");
+                    b.HasIndex("Status");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            AvailableQuantity = 100,
-                            Name = "Widget"
-                        },
-                        new
-                        {
-                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            AvailableQuantity = 2,
-                            Name = "Gadget"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            AvailableQuantity = 0,
-                            Name = "Out Of Stock Item"
-                        });
+                    b.ToTable("Orders");
                 });
 
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.StockReservation", b =>
+            modelBuilder.Entity("OrderFlow.Orders.Api.Entities.OrderItem", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("OrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("ReservedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId")
-                        .IsUnique();
-
-                    b.ToTable("StockReservations");
-                });
-
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.StockReservationLine", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("ProductName")
@@ -269,14 +239,38 @@ namespace OrderFlow.Inventory.Api.Repository.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("StockReservationId")
-                        .HasColumnType("uuid");
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("numeric");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StockReservationId");
+                    b.HasIndex("OrderId");
 
-                    b.ToTable("StockReservationLines");
+                    b.ToTable("OrderItems");
+                });
+
+            modelBuilder.Entity("OrderFlow.Orders.Api.Systems.Saga.OrderStateInstance", b =>
+                {
+                    b.Property<Guid>("CorrelationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CurrentState")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("CorrelationId");
+
+                    b.ToTable("OrderStateInstance");
                 });
 
             modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
@@ -291,20 +285,20 @@ namespace OrderFlow.Inventory.Api.Repository.Migrations
                         .HasPrincipalKey("MessageId", "ConsumerId");
                 });
 
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.StockReservationLine", b =>
+            modelBuilder.Entity("OrderFlow.Orders.Api.Entities.OrderItem", b =>
                 {
-                    b.HasOne("OrderFlow.Inventory.Api.Entities.StockReservation", "StockReservation")
-                        .WithMany("Lines")
-                        .HasForeignKey("StockReservationId")
+                    b.HasOne("OrderFlow.Orders.Api.Entities.Order", "Order")
+                        .WithMany("Items")
+                        .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("StockReservation");
+                    b.Navigation("Order");
                 });
 
-            modelBuilder.Entity("OrderFlow.Inventory.Api.Entities.StockReservation", b =>
+            modelBuilder.Entity("OrderFlow.Orders.Api.Entities.Order", b =>
                 {
-                    b.Navigation("Lines");
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }
