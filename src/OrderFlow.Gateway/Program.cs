@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Http.Resilience;
+using OpenTelemetry;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Polly;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,6 +45,16 @@ foreach (var (name, baseUrl) in downstreamServices)
     });
 }
 
+// Распределённая трассировка → Jaeger (OTLP). Здесь начинается trace: AspNetCore ловит входящий
+// запрос, Http-инструментация — исходящий хоп на Orders, дальше контекст уходит в шину через Orders.
+var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"] ?? "http://127.0.0.1:4317";
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("OrderFlow.Gateway"))
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter(otlp => otlp.Endpoint = new Uri(otlpEndpoint)));
+
 var app = builder.Build();
 
 app.MapReverseProxy();
@@ -78,4 +91,3 @@ app.MapGet("/health", async (IHttpClientFactory httpClientFactory, CancellationT
 });
 
 app.Run();
-/

@@ -1,3 +1,6 @@
+using OpenTelemetry;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using OrderFlow.Notifications.Api.Repository.DbContext;
 using OrderFlow.Notifications.Api.Repository.Migrator;
 using OrderFlow.Notifications.Api.Systems;
@@ -26,6 +29,17 @@ builder.Services.AddNotificationsServices(connectionString, rabbitMqHost, rabbit
 // когда в контейнере есть health checks — оба статуса отдаёт эндпоинт /health.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<NotificationsDbContext>();
+
+// Распределённая трассировка → Jaeger (OTLP). MassTransit сам прокидывает W3C trace-context
+// через заголовки сообщений, поэтому спаны Orders→Inventory→Notifications склеиваются в один trace.
+var otlpEndpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"] ?? "http://127.0.0.1:4317";
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("OrderFlow.Notifications"))
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation()
+        .AddEntityFrameworkCoreInstrumentation()
+        .AddSource("MassTransit") // = DiagnosticHeaders.DefaultListenerName
+        .AddOtlpExporter(otlp => otlp.Endpoint = new Uri(otlpEndpoint)));
 
 var app = builder.Build();
 
