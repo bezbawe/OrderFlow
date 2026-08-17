@@ -1,3 +1,4 @@
+using OrderFlow.Notifications.Api.Repository.DbContext;
 using OrderFlow.Notifications.Api.Repository.Migrator;
 using OrderFlow.Notifications.Api.Systems;
 
@@ -21,6 +22,11 @@ var smtpPort = builder.Configuration.GetValue<int>("Smtp:Port");
 
 builder.Services.AddNotificationsServices(connectionString, rabbitMqHost, rabbitMqUsername, rabbitMqPassword, smtpHost, smtpPort);
 
+// DB-подключение проверяется явно; MassTransit сам добавляет проверку шины (RabbitMQ),
+// когда в контейнере есть health checks — оба статуса отдаёт эндпоинт /health.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<NotificationsDbContext>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -29,5 +35,7 @@ if (app.Environment.IsDevelopment())
 }
 
 await app.Services.ApplyMigrationsAsync();
+
+app.MapHealthChecks("/health");
 
 app.Run();

@@ -19,6 +19,11 @@ var rabbitMqPassword = builder.Configuration["RabbitMq:Password"]
 
 builder.Services.AddInventoryServices(connectionString, rabbitMqHost, rabbitMqUsername, rabbitMqPassword);
 
+// DB-подключение проверяется явно; MassTransit сам добавляет проверку шины (RabbitMQ),
+// когда в контейнере есть health checks — оба статуса отдаёт эндпоинт /health.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<InventoryDbContext>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -27,6 +32,8 @@ if (app.Environment.IsDevelopment())
 }
 
 await app.Services.ApplyMigrationsAsync();
+
+app.MapHealthChecks("/health");
 
 app.MapGet("/products", async (InventoryDbContext db) => Results.Ok(await db.Products.ToListAsync()));
 

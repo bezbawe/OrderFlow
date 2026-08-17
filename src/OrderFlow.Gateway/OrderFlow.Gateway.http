@@ -1,6 +1,22 @@
 @OrderFlow.Gateway_HostAddress = http://localhost:5100
 
-GET {{OrderFlow.Gateway_HostAddress}}/weatherforecast/
+### Агрегированный health всех сервисов
+GET {{OrderFlow.Gateway_HostAddress}}/health
+Accept: application/json
+
+### Создать заказ (проксируется на Orders)
+POST {{OrderFlow.Gateway_HostAddress}}/orders
+Content-Type: application/json
+
+{
+  "customerName": "Alice",
+  "items": [
+    { "productName": "Widget", "quantity": 1, "unitPrice": 9.99 }
+  ]
+}
+
+### Список заказов (проксируется на Orders)
+GET {{OrderFlow.Gateway_HostAddress}}/orders
 Accept: application/json
 
 ###

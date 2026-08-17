@@ -22,6 +22,11 @@ var rabbitMqPassword = builder.Configuration["RabbitMq:Password"]
 
 builder.Services.AddOrdersServices(connectionString, rabbitMqHost, rabbitMqUsername, rabbitMqPassword);
 
+// DB-подключение проверяется явно; MassTransit сам добавляет проверку шины (RabbitMQ),
+// когда в контейнере есть health checks — оба статуса отдаёт эндпоинт /health.
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<OrdersDbContext>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -30,6 +35,8 @@ if (app.Environment.IsDevelopment())
 }
 
 await app.Services.ApplyMigrationsAsync();
+
+app.MapHealthChecks("/health");
 
 app.MapPost("/orders", async (CreateOrderRequest request, IOrderSystem orderSystem, IPublishEndpoint publishEndpoint, OrdersDbContext db) =>
 {
