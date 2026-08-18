@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Http.Resilience;
-using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Polly;
